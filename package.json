@@ -1,0 +1,42 @@
+{
+  "name": "predictionmarket-arbitrage-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Editable desktop wrapper for the prediction market arbitrage bot.",
+  "author": "Local",
+  "main": "desktop/main.js",
+  "scripts": {
+    "desktop": "electron .",
+    "start": "electron .",
+    "package:win": "set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --win portable",
+    "check:desktop": "node --check desktop/main.js"
+  },
+  "build": {
+    "appId": "local.predictionmarket.arbitragebot",
+    "productName": "Prediction Market Bot",
+    "asar": false,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "desktop/**/*",
+      "src/**/*",
+      "web/**/*",
+      "data/.gitkeep",
+      "requirements.txt",
+      ".env.example",
+      "README.md",
+      "package.json"
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        "portable"
+      ]
+    }
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  }
+}

@@ -1,0 +1,767 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Prediction Market Arbitrage Bot</title>
+    <link rel="stylesheet" href="/assets/styles.css">
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="mark">PM</div>
+        <div>
+          <h1>Arbitrage Bot</h1>
+          <p>Polymarket scanner</p>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item active" type="button" data-tab="scanner">Scanner</button>
+        <button class="nav-item" type="button" data-tab="traders">Traders</button>
+        <button class="nav-item" type="button" data-tab="smart">Smart Wallets</button>
+        <button class="nav-item" type="button" data-tab="watchlist">Watchlist</button>
+        <button class="nav-item" type="button" data-tab="paper">Paper Trading</button>
+        <button class="nav-item" type="button" data-tab="execution">Execution</button>
+        <button class="nav-item" type="button" disabled>Risk</button>
+      </nav>
+
+      <div class="mode">
+        <span class="dot"></span>
+        <span>Read-only mode</span>
+      </div>
+    </aside>
+
+    <main class="app">
+      <section class="tab-panel active" id="scannerPanel">
+        <section class="topbar">
+          <div>
+            <h2>Binary Arbitrage Scanner</h2>
+            <p>Finds top-of-book YES + NO opportunities below $1.00 after estimated fees.</p>
+          </div>
+          <div class="button-row">
+            <button id="arbMonitorButton" class="secondary-button" type="button">Start Arb Alerts</button>
+            <button id="scanButton" class="primary-button" type="button">Run Scan</button>
+          </div>
+        </section>
+
+        <section class="controls">
+          <label>
+            <span>Market request limit</span>
+            <input id="limitInput" type="number" min="1" max="500" value="50">
+          </label>
+          <label>
+            <span>Markets to scan</span>
+            <input id="maxMarketsInput" type="number" min="1" max="500" value="25">
+          </label>
+          <label>
+            <span>Minimum profit bps</span>
+            <input id="profitInput" type="number" min="0" step="1" value="10">
+          </label>
+        </section>
+
+        <section class="metrics">
+          <div class="metric">
+            <span>Opportunities</span>
+            <strong id="opportunityCount">0</strong>
+          </div>
+          <div class="metric">
+            <span>Best edge</span>
+            <strong id="bestEdge">0 bps</strong>
+          </div>
+          <div class="metric">
+            <span>Scan time</span>
+            <strong id="scanTime">-</strong>
+          </div>
+          <div class="metric">
+            <span>Status</span>
+            <strong id="statusText">Idle</strong>
+          </div>
+        </section>
+
+        <section class="results">
+          <div class="section-header">
+            <h3>Opportunities</h3>
+            <span id="lastUpdated">Not scanned yet</span>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Market</th>
+                  <th>YES</th>
+                  <th>NO</th>
+                  <th>Fee</th>
+                  <th>Net Cost</th>
+                  <th>Profit</th>
+                  <th>Size</th>
+                </tr>
+              </thead>
+              <tbody id="resultsBody">
+                <tr class="empty-row">
+                  <td colspan="7">Run a scan to look for opportunities.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="results">
+          <div class="section-header">
+            <h3>Arbitrage Alerts</h3>
+            <span id="arbAlertStatus">Monitor stopped</span>
+          </div>
+
+          <div id="arbAlerts" class="trader-results">
+            <div class="empty-state">Start Arb Alerts to monitor for new opportunities.</div>
+          </div>
+        </section>
+      </section>
+
+      <section class="tab-panel" id="tradersPanel">
+        <section class="topbar">
+          <div>
+            <h2>Profitable Trader Tracker</h2>
+            <p>Ranks top Polymarket wallets and shows their latest public trade activity.</p>
+          </div>
+          <button id="traderButton" class="primary-button" type="button">Load Traders</button>
+        </section>
+
+        <section class="controls trader-controls">
+          <label>
+            <span>Category</span>
+            <select id="categoryInput">
+              <option value="OVERALL">Overall</option>
+              <option value="POLITICS">Politics</option>
+              <option value="SPORTS">Sports</option>
+              <option value="CRYPTO">Crypto</option>
+              <option value="CULTURE">Culture</option>
+              <option value="WEATHER">Weather</option>
+              <option value="ECONOMICS">Economics</option>
+              <option value="TECH">Tech</option>
+              <option value="FINANCE">Finance</option>
+            </select>
+          </label>
+          <label>
+            <span>Time period</span>
+            <select id="periodInput">
+              <option value="DAY">Day</option>
+              <option value="WEEK">Week</option>
+              <option value="MONTH">Month</option>
+              <option value="ALL">All time</option>
+            </select>
+          </label>
+          <label>
+            <span>Rank by</span>
+            <select id="orderInput">
+              <option value="CONSISTENCY">Consistency score</option>
+              <option value="PNL">PnL</option>
+              <option value="VOL">Volume</option>
+            </select>
+          </label>
+          <label>
+            <span>Traders</span>
+            <input id="traderLimitInput" type="number" min="1" max="50" value="10">
+          </label>
+          <label>
+            <span>Trades per trader</span>
+            <input id="tradesPerTraderInput" type="number" min="0" max="25" value="5">
+          </label>
+          <label>
+            <span>Closed positions sampled</span>
+            <input id="closedPositionsInput" type="number" min="1" max="50" value="50">
+          </label>
+          <label>
+            <span>Min win rate %</span>
+            <input id="minWinRateInput" type="number" min="0" max="100" step="1" value="55">
+          </label>
+          <label>
+            <span>Min closed positions</span>
+            <input id="minClosedInput" type="number" min="0" max="50" value="10">
+          </label>
+          <label>
+            <span>Min recent trades</span>
+            <input id="minRecentTradesInput" type="number" min="0" max="25" value="3">
+          </label>
+        </section>
+
+        <section class="metrics">
+          <div class="metric">
+            <span>Tracked traders</span>
+            <strong id="traderCount">0</strong>
+          </div>
+          <div class="metric">
+            <span>Top score</span>
+            <strong id="topScore">0</strong>
+          </div>
+          <div class="metric">
+            <span>Load time</span>
+            <strong id="traderLoadTime">-</strong>
+          </div>
+          <div class="metric">
+            <span>Status</span>
+            <strong id="traderStatusText">Idle</strong>
+          </div>
+        </section>
+
+        <section class="results">
+          <div class="section-header">
+            <h3>Top Traders And Latest Trades</h3>
+            <span id="traderLastUpdated">Not loaded yet</span>
+          </div>
+
+          <div id="traderResults" class="trader-results">
+            <div class="empty-state">Load traders to inspect their recent public trades.</div>
+          </div>
+        </section>
+      </section>
+
+      <section class="tab-panel" id="smartPanel">
+        <section class="topbar">
+          <div>
+            <h2>Smart Wallet Detector</h2>
+            <p>Builds local history and ranks wallets with repeatable wins, activity, and favorable post-trade movement.</p>
+          </div>
+          <div class="button-row">
+            <button id="smartIngestButton" class="secondary-button" type="button">Update Memory</button>
+            <button id="smartLoadButton" class="primary-button" type="button">Rank Wallets</button>
+          </div>
+        </section>
+
+        <section class="controls smart-controls">
+          <label>
+            <span>Candidate category</span>
+            <select id="smartCategoryInput">
+              <option value="OVERALL">Overall</option>
+              <option value="POLITICS">Politics</option>
+              <option value="SPORTS">Sports</option>
+              <option value="CRYPTO">Crypto</option>
+              <option value="CULTURE">Culture</option>
+              <option value="WEATHER">Weather</option>
+              <option value="ECONOMICS">Economics</option>
+              <option value="TECH">Tech</option>
+              <option value="FINANCE">Finance</option>
+            </select>
+          </label>
+          <label>
+            <span>Candidate period</span>
+            <select id="smartPeriodInput">
+              <option value="MONTH">Month</option>
+              <option value="WEEK">Week</option>
+              <option value="DAY">Day</option>
+              <option value="ALL">All time</option>
+            </select>
+          </label>
+          <label>
+            <span>Candidates to ingest</span>
+            <input id="candidateLimitInput" type="number" min="1" max="50" value="25">
+          </label>
+          <label>
+            <span>Trades per wallet</span>
+            <input id="smartTradesInput" type="number" min="1" max="100" value="25">
+          </label>
+          <label>
+            <span>Closed positions per wallet</span>
+            <input id="smartPositionsInput" type="number" min="1" max="100" value="50">
+          </label>
+          <label>
+            <span>Markout trades per wallet</span>
+            <input id="markoutTradesInput" type="number" min="0" max="20" value="5">
+          </label>
+          <label>
+            <span>Min trades</span>
+            <input id="smartMinTradesInput" type="number" min="0" max="500" value="10">
+          </label>
+          <label>
+            <span>Min closed positions</span>
+            <input id="smartMinClosedInput" type="number" min="0" max="500" value="10">
+          </label>
+          <label>
+            <span>Min win rate %</span>
+            <input id="smartMinWinRateInput" type="number" min="0" max="100" value="55">
+          </label>
+        </section>
+
+        <section class="metrics">
+          <div class="metric">
+            <span>Ranked wallets</span>
+            <strong id="smartWalletCount">0</strong>
+          </div>
+          <div class="metric">
+            <span>Top score</span>
+            <strong id="smartTopScore">0</strong>
+          </div>
+          <div class="metric">
+            <span>Last update</span>
+            <strong id="smartUpdateStat">-</strong>
+          </div>
+          <div class="metric">
+            <span>Status</span>
+            <strong id="smartStatusText">Idle</strong>
+          </div>
+        </section>
+
+        <section class="results">
+          <div class="section-header">
+            <h3>Ranked Smart Wallets</h3>
+            <span id="smartLastUpdated">No local history loaded yet</span>
+          </div>
+
+          <div id="smartResults" class="trader-results">
+            <div class="empty-state">Update memory, then rank wallets.</div>
+          </div>
+        </section>
+      </section>
+
+      <section class="tab-panel" id="watchlistPanel">
+        <section class="topbar">
+          <div>
+            <h2>Personal Watchlist</h2>
+            <p>Saved wallets stay here even when leaderboards and generated rankings change.</p>
+          </div>
+          <div class="button-row">
+            <button id="traderMonitorButton" class="secondary-button" type="button">Trade Alerts On</button>
+            <button id="watchlistRefreshButton" class="secondary-button" type="button">Refresh Trades</button>
+            <button id="watchlistLoadButton" class="primary-button" type="button">Load Watchlist</button>
+          </div>
+        </section>
+
+        <section class="metrics">
+          <div class="metric">
+            <span>Saved wallets</span>
+            <strong id="watchlistCount">0</strong>
+          </div>
+          <div class="metric">
+            <span>Status</span>
+            <strong id="watchlistStatusText">Idle</strong>
+          </div>
+          <div class="metric">
+            <span>Last load</span>
+            <strong id="watchlistLastLoad">-</strong>
+          </div>
+          <div class="metric">
+            <span>Memory</span>
+            <strong>Local</strong>
+          </div>
+        </section>
+
+        <section class="results">
+          <div class="section-header">
+            <h3>Saved Traders</h3>
+            <span>Stored in your local database</span>
+          </div>
+
+          <div id="watchlistResults" class="trader-results">
+            <div class="empty-state">Save a trader from Traders or Smart Wallets.</div>
+          </div>
+        </section>
+
+        <section class="results">
+          <div class="section-header">
+            <h3>Recent Watchlist Alerts</h3>
+            <span id="watchlistAlertStatus">No refresh yet</span>
+          </div>
+
+          <div id="watchlistAlerts" class="trader-results">
+            <div class="empty-state">Refresh saved traders to collect new trade alerts.</div>
+          </div>
+        </section>
+      </section>
+
+      <section class="tab-panel" id="paperPanel">
+        <section class="topbar">
+          <div>
+            <h2>Paper Trading</h2>
+            <p>Simulated orders from arbitrage and copytrade signals. No real trades are placed.</p>
+          </div>
+          <div class="button-row">
+            <button id="paperReconcileButton" class="secondary-button" type="button">Settle Ended</button>
+            <button id="paperSaveBalanceButton" class="secondary-button" type="button">Save Balance</button>
+            <button id="paperResetButton" class="secondary-button danger-button" type="button">Reset Paper</button>
+            <button id="paperLoadButton" class="primary-button" type="button">Refresh Paper</button>
+          </div>
+        </section>
+
+        <section class="controls">
+          <label>
+            <span>Paper balance</span>
+            <input id="paperBalanceInput" type="number" min="0" step="100" value="1000">
+          </label>
+        </section>
+
+        <section class="paper-execution-panel">
+          <div class="section-header">
+            <div>
+              <h3>Execution Assumptions</h3>
+              <span id="paperExecutionStatus">Applied to new paper trades only</span>
+            </div>
+            <button id="paperSaveExecutionButton" class="secondary-button" type="button">Save Assumptions</button>
+          </div>
+          <div class="paper-execution-grid">
+            <label>
+              <span>Entry slippage bps</span>
+              <input id="paperEntrySlippageInput" type="number" min="0" max="10000" step="1" value="25">
+            </label>
+            <label>
+              <span>Exit slippage bps</span>
+              <input id="paperExitSlippageInput" type="number" min="0" max="10000" step="1" value="25">
+            </label>
+            <label>
+              <span>Fee bps</span>
+              <input id="paperFeeInput" type="number" min="0" max="10000" step="1" value="0">
+            </label>
+            <label>
+              <span>Max chase bps</span>
+              <input id="paperMaxChaseInput" type="number" min="0" max="10000" step="1" value="100">
+            </label>
+            <label>
+              <span>Copytrade capital mode</span>
+              <select id="paperCapitalModeInput">
+                <option value="CONSERVATIVE">Conservative - protect realized profit</option>
+                <option value="AGGRESSIVE">Aggressive - compound full cash</option>
+              </select>
+            </label>
+            <label>
+              <span>Minimum cash reserve</span>
+              <input id="paperMinCashReserveInput" type="number" min="0" step="1" value="0">
+            </label>
+          </div>
+        </section>
+
+        <section class="metrics">
+          <div class="metric">
+            <span>Cash balance</span>
+            <strong id="paperCashBalance">$0</strong>
+          </div>
+          <div class="metric">
+            <span>Active cost</span>
+            <strong id="paperActiveCost">$0</strong>
+          </div>
+          <div class="metric">
+            <span>Running PnL</span>
+            <strong id="paperRunningPnl">$0</strong>
+          </div>
+          <div class="metric">
+            <span>Equity</span>
+            <strong id="paperEquity">$0</strong>
+          </div>
+          <div class="metric">
+            <span>Win / Loss</span>
+            <strong id="paperWinLoss">0 / 0</strong>
+          </div>
+          <div class="metric">
+            <span>Win rate</span>
+            <strong id="paperWinRate">0%</strong>
+          </div>
+          <div class="metric">
+            <span>Risk events</span>
+            <strong id="paperRiskEvents">0</strong>
+          </div>
+        </section>
+
+        <section class="paper-account-chart">
+          <div class="section-header">
+            <h3>Account Development</h3>
+            <span id="paperAccountChartSummary">No account history yet</span>
+          </div>
+          <div id="paperAccountChart" class="account-chart">
+            <div class="empty-state">Account snapshots will appear as the bot runs.</div>
+          </div>
+        </section>
+
+        <section class="paper-workspace">
+          <div class="paper-tabs" role="tablist" aria-label="Paper trading views">
+            <button class="paper-tab-button active" type="button" data-paper-tab="active">Active Trades</button>
+            <button class="paper-tab-button" type="button" data-paper-tab="finished">Finished Trades</button>
+          </div>
+
+          <div class="paper-subpanel active" id="paperActivePanel">
+            <div class="section-header">
+              <h3>Active Trades</h3>
+              <span id="paperLastUpdated">Not loaded yet</span>
+            </div>
+
+            <div id="paperActiveResults" class="trader-results">
+              <div class="empty-state">Enable Copytrade on a saved trader, then refresh trades.</div>
+            </div>
+          </div>
+
+          <div class="paper-subpanel" id="paperFinishedPanel">
+            <div class="section-header">
+              <h3>Finished Trades</h3>
+              <span id="paperClosedSummary">No closed trades</span>
+            </div>
+
+            <div id="paperClosedResults" class="paper-finished-list">
+              <div class="empty-state">Closed paper trades will appear here.</div>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section class="tab-panel" id="executionPanel">
+        <section class="topbar">
+          <div>
+            <h2>Execution Connection</h2>
+            <p>Real account status and guarded live copytrading. Live orders only submit when explicitly armed.</p>
+          </div>
+          <div class="button-row">
+            <a class="secondary-button external-action" href="https://polymarket.com" target="_blank" rel="noopener noreferrer">Open Polymarket</a>
+            <button id="accountRefreshButton" class="primary-button" type="button">Refresh Account</button>
+          </div>
+        </section>
+
+        <section class="results live-control-panel">
+          <div class="section-header">
+            <div>
+              <h3>Live Copytrading Controls</h3>
+              <span id="liveTradingStatus">Kill switch is ON. Live trading is stopped.</span>
+            </div>
+            <div class="button-row">
+              <button id="liveArmButton" class="primary-button" type="button">Give Go</button>
+              <button id="liveKillButton" class="secondary-button danger-button" type="button">Kill Switch</button>
+            </div>
+          </div>
+          <div class="live-safety-grid">
+            <div class="execution-login-card">
+              <strong>Uses live-only copy settings</strong>
+              <span>Saved traders appear below, but live copy switches, sizing, max chase, capital mode, and reserve are independent from Paper Trading.</span>
+            </div>
+            <div class="execution-login-card">
+              <strong>Starts stopped</strong>
+              <span>Live order submission is disabled after setup and after every kill switch. You must press Give Go before any live copy order can be submitted.</span>
+            </div>
+            <div class="execution-login-card">
+              <strong>FOK limit orders</strong>
+              <span>The bot submits fill-or-kill limit copy orders with the configured chase/slippage guard. It does not use unlimited market orders.</span>
+            </div>
+          </div>
+          <div class="paper-execution-grid live-risk-grid">
+            <label>
+              <span>Copytrade capital mode</span>
+              <select id="liveCapitalModeInput">
+                <option value="CONSERVATIVE">Conservative - protect realized profit</option>
+                <option value="AGGRESSIVE">Aggressive - compound full cash</option>
+              </select>
+            </label>
+            <label>
+              <span>Minimum cash reserve</span>
+              <input id="liveMinCashReserveInput" type="number" min="0" step="1" value="0">
+            </label>
+            <label>
+              <span>Minimum trade value</span>
+              <input id="liveMinTradeInput" type="number" min="0" step="1" value="1">
+            </label>
+            <label>
+              <span>Max chase bps</span>
+              <input id="liveMaxChaseInput" type="number" min="0" max="10000" step="1" value="100">
+            </label>
+            <div class="connection-actions">
+              <button id="liveSaveRiskButton" class="secondary-button" type="button">Save Live Risk</button>
+            </div>
+          </div>
+          <section class="metrics compact-metrics">
+            <div class="metric">
+              <span>Live mode</span>
+              <strong id="liveModeMetric">Stopped</strong>
+            </div>
+            <div class="metric">
+              <span>Configured reserve</span>
+              <strong id="liveBalanceMetric">-</strong>
+            </div>
+            <div class="metric">
+              <span>Cash reserve</span>
+              <strong id="liveCashReserveMetric">$0.00</strong>
+            </div>
+            <div class="metric">
+              <span>Combined live balance</span>
+              <strong id="liveEquityMetric">$0.00</strong>
+            </div>
+            <div class="metric">
+              <span>Live open cost</span>
+              <strong id="liveOpenCostMetric">$0.00</strong>
+            </div>
+            <div class="metric">
+              <span>Live realized PnL</span>
+              <strong id="liveRealizedMetric">$0.00</strong>
+            </div>
+            <div class="metric">
+              <span>Live running PnL</span>
+              <strong id="liveRunningPnlMetric">$0.00</strong>
+            </div>
+          </section>
+          <section class="paper-account-chart live-account-chart-panel">
+            <div class="section-header">
+              <h3>Linked Account Balance</h3>
+              <span id="liveAccountChartSummary">No balance history yet</span>
+            </div>
+            <div id="liveAccountChart" class="account-chart">
+              <div class="empty-state">Live balance snapshots will appear as the bot runs.</div>
+            </div>
+          </section>
+          <div class="account-data-sections live-order-space">
+            <div class="account-data-section">
+              <h4>Live Copytrader Review</h4>
+              <div id="liveCopytraderList" class="live-copytrader-list">
+                <div class="empty-state">Saved traders with copy settings will appear here before you arm live trading.</div>
+              </div>
+            </div>
+            <div class="account-data-section">
+              <h4>Live Trades</h4>
+              <div class="paper-tabs live-tabs" role="tablist" aria-label="Live trading views">
+                <button class="live-tab-button active" type="button" data-live-tab="open">Open Trades</button>
+                <button class="live-tab-button" type="button" data-live-tab="closed">Closed Trades</button>
+              </div>
+              <div class="paper-subpanel active" id="liveOpenPanel">
+                <div id="liveOpenPositions" class="account-row-list">
+                  <div class="empty-state">No live positions opened by this bot.</div>
+                </div>
+              </div>
+              <div class="paper-subpanel" id="liveClosedPanel">
+                <div id="liveClosedPositions" class="account-row-list">
+                  <div class="empty-state">No closed live trades yet.</div>
+                </div>
+              </div>
+            </div>
+            <div class="account-data-section">
+              <h4>Linked Account Closed Positions</h4>
+              <div id="linkedClosedSummary" class="paper-close-note">Not loaded yet</div>
+              <div id="linkedClosedPositions" class="account-row-list">
+                <div class="empty-state">Closed positions from your linked Polymarket account will appear here.</div>
+              </div>
+            </div>
+            <div class="account-data-section">
+              <h4>Live Order Log</h4>
+              <div id="liveOrderLog" class="account-row-list">
+                <div class="empty-state">Live copy orders will appear here after you give go.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="results">
+          <div class="section-header">
+            <h3>Account Login</h3>
+            <span>Use your browser wallet directly on Polymarket</span>
+          </div>
+          <div class="execution-login-panel">
+            <div class="execution-login-card">
+              <strong>1. Open Polymarket</strong>
+              <span>Log in on the official site in a new browser tab. Do not enter wallet seed phrases or private keys into this bot UI.</span>
+            </div>
+            <div class="execution-login-card">
+              <strong>2. Copy account details</strong>
+              <span>Paste your account/funder addresses and API credentials into the local connection panel below.</span>
+            </div>
+            <div class="execution-login-card">
+              <strong>3. Refresh here</strong>
+              <span>The bot reads account status, balances, open orders and trades. Order placement remains disabled.</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="results">
+          <div class="section-header">
+            <h3>Local API Connection</h3>
+            <span id="accountConnectionSaveStatus">Stored locally in .env</span>
+          </div>
+          <div class="connection-help">
+            <strong>Easy mode for new Polymarket API users</strong>
+            <span>Use signature type 3. Put your Polymarket deposit wallet into the Deposit / funder field. If Account address is empty, the bot will use the same deposit wallet there too. Then paste the private key of the separate owner/signer wallet and click Derive API Credentials.</span>
+          </div>
+          <form id="accountConnectionForm" class="account-connection-form">
+            <label>
+              Account address
+              <input id="accountAddressInput" autocomplete="off" placeholder="Optional: same as deposit wallet" />
+            </label>
+            <label>
+              Deposit / funder wallet
+              <input id="accountFunderInput" autocomplete="off" placeholder="0x..." />
+            </label>
+            <label>
+              Signature type
+              <select id="accountSignatureTypeInput">
+                <option value="">Auto / unset</option>
+                <option value="0">0 - browser wallet</option>
+                <option value="1">1 - magic/proxy</option>
+                <option value="2">2 - proxy</option>
+                <option value="3" selected>3 - deposit wallet</option>
+              </select>
+            </label>
+            <label>
+              API key
+              <input id="accountApiKeyInput" type="password" autocomplete="off" placeholder="Leave blank to keep saved value" />
+            </label>
+            <label>
+              API secret
+              <input id="accountApiSecretInput" type="password" autocomplete="off" placeholder="Leave blank to keep saved value" />
+            </label>
+            <label>
+              API passphrase
+              <input id="accountApiPassphraseInput" type="password" autocomplete="off" placeholder="Leave blank to keep saved value" />
+            </label>
+            <label class="wide-field">
+              Private key
+              <input id="accountPrivateKeyInput" type="password" autocomplete="off" placeholder="Use a separate small bot wallet. Leave blank to keep saved value." />
+            </label>
+            <div class="connection-actions">
+              <button id="saveAccountConnectionButton" class="primary-button" type="submit">Save Connection</button>
+              <button id="deriveAccountCredentialsButton" class="secondary-button" type="button">Derive API Credentials</button>
+              <button id="testAccountConnectionButton" class="secondary-button" type="button">Save & Test</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="metrics">
+          <div class="metric">
+            <span>Connection</span>
+            <strong id="accountConnectionStatus">Disconnected</strong>
+          </div>
+          <div class="metric">
+            <span>Balance</span>
+            <strong id="accountBalance">-</strong>
+          </div>
+          <div class="metric">
+            <span>Allowance</span>
+            <strong id="accountAllowance">-</strong>
+          </div>
+          <div class="metric">
+            <span>Open positions</span>
+            <strong id="accountOpenPositions">0</strong>
+          </div>
+          <div class="metric">
+            <span>Recent trades</span>
+            <strong id="accountRecentTrades">0</strong>
+          </div>
+          <div class="metric">
+            <span>Live trading</span>
+            <strong id="accountLiveTrading">Disabled</strong>
+          </div>
+        </section>
+
+        <section class="results">
+          <div class="section-header">
+            <h3>Account Credentials</h3>
+            <span id="accountLastUpdated">Not loaded yet</span>
+          </div>
+          <div id="accountConnectionDetails" class="trader-results">
+            <div class="empty-state">Configure your account address in .env, then refresh.</div>
+          </div>
+        </section>
+
+        <section class="results">
+          <div class="section-header">
+            <h3>Read-Only Account Data</h3>
+            <span>No orders can be placed from this screen</span>
+          </div>
+          <div id="accountReadOnlyData" class="trader-results">
+            <div class="empty-state">Account positions and recent activity will appear here.</div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="/assets/app.js"></script>
+  </body>
+</html>
