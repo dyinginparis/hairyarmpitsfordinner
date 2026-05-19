@@ -241,7 +241,10 @@ def create_app() -> Flask:
         if not open_positions:
             live_trading = build_live_trading()
             reconcile_live_trading(live_trading)
-            live_trading.save_account_snapshot(live_trading.account_summary(live_markets_for_open_positions(live_trading)))
+            account_positions, _position_errors = live_account_positions()
+            live_trading.save_account_snapshot(
+                live_trading.account_summary(live_markets_for_open_positions(live_trading), account_positions)
+            )
             return
         client = PolymarketClient(
             gamma_base_url=settings.gamma_base_url,
@@ -254,7 +257,10 @@ def create_app() -> Flask:
         paper_trading.get_marked_account(markets, save_snapshot=True)
         live_trading = build_live_trading()
         reconcile_live_trading(live_trading)
-        live_trading.save_account_snapshot(live_trading.account_summary(live_markets_for_open_positions(live_trading)))
+        account_positions, _position_errors = live_account_positions()
+        live_trading.save_account_snapshot(
+            live_trading.account_summary(live_markets_for_open_positions(live_trading), account_positions)
+        )
 
     def reconcile_paper_trading(client: PolymarketClient | None = None) -> dict[str, Any]:
         paper_trading = build_paper_trading()
@@ -815,7 +821,8 @@ def create_app() -> Flask:
                 min_cash_reserve_usdc=Decimal(str(payload.get("minCashReserveUsdc", "0"))),
                 min_trade_usdc=Decimal(str(payload.get("minTradeUsdc", "1"))),
             )
-            account = live_trading.account_summary(live_markets_for_open_positions(live_trading))
+            account_positions, _position_errors = live_account_positions()
+            account = live_trading.account_summary(live_markets_for_open_positions(live_trading), account_positions)
             return jsonify({"settings": settings_payload, "account": account})
         except Exception as error:
             LOGGER.exception("Could not update live settings")
@@ -825,7 +832,13 @@ def create_app() -> Flask:
     def live_kill_switch():
         live_trading = build_live_trading()
         settings_payload = live_trading.emergency_stop()
-        return jsonify({"settings": settings_payload, "account": live_trading.account_summary(live_markets_for_open_positions(live_trading))})
+        account_positions, _position_errors = live_account_positions()
+        return jsonify(
+            {
+                "settings": settings_payload,
+                "account": live_trading.account_summary(live_markets_for_open_positions(live_trading), account_positions),
+            }
+        )
 
     @app.get("/api/live/orders")
     def live_orders():

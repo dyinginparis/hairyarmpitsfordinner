@@ -310,16 +310,19 @@ class LiveTrading:
         open_market_value = sum(Decimal(str(position["mark_value_usdc"])) for position in marked_positions)
         unrealized = sum(Decimal(str(position["unrealized_pnl_usdc"])) for position in marked_positions)
         running_pnl = realized + unrealized
+        linked_open_market_value = self._account_positions_current_value(account_positions or [])
+        equity_estimate = balance + (linked_open_market_value if account_positions is not None else open_market_value)
         return {
             "enabled": settings["enabled"],
             "startingBalanceUsdc": settings["startingBalanceUsdc"],
             "balanceUsdc": float(balance),
             "openCostUsdc": float(open_cost),
             "openMarketValueUsdc": float(open_market_value),
+            "linkedOpenMarketValueUsdc": float(linked_open_market_value),
             "realizedPnlUsdc": float(realized),
             "unrealizedPnlUsdc": float(unrealized),
             "runningPnlUsdc": float(running_pnl),
-            "equityEstimateUsdc": float(balance + open_market_value),
+            "equityEstimateUsdc": float(equity_estimate),
             "orders": orders,
         }
 
@@ -625,6 +628,15 @@ class LiveTrading:
             item["size"] += size
             item["current_value"] += current_value
         return marks
+
+    @staticmethod
+    def _account_positions_current_value(account_positions: list[dict[str, Any]]) -> Decimal:
+        total = Decimal("0")
+        for position in account_positions:
+            current_value = LiveTrading._position_current_value(position)
+            if current_value is not None:
+                total += current_value
+        return total
 
     def _submit_live_copy_order(
         self,
