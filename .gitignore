@@ -16,3 +16,5 @@ server.err.log
 data/
 *.sqlite3
 *.db
+PredictionMarketBotService.xml
+PredictionMarketBotService.exe
