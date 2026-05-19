@@ -123,7 +123,7 @@ class LiveTrading:
             current = self._ensure_settings(connection)
             starting_balance = current["starting_balance_usdc"]
             if enabled and starting_balance is None:
-                starting_balance = self._current_collateral_balance_usdc()
+                starting_balance = self._current_collateral_balance_usdc(require_configured=True)
             connection.execute(
                 """
                 UPDATE live_execution_settings
@@ -907,14 +907,35 @@ class LiveTrading:
             )
         )
 
-    def _current_collateral_balance_usdc(self) -> Decimal:
+    def _current_collateral_balance_usdc(self, require_configured: bool = False) -> Decimal:
         settings = load_settings()
+        configured = all(
+            [
+                settings.polymarket_private_key,
+                settings.polymarket_api_key,
+                settings.polymarket_api_secret,
+                settings.polymarket_api_passphrase,
+            ]
+        )
+        if not configured:
+            if require_configured:
+                raise ValueError("Live trading requires a private key and API credentials in .env.")
+            return Decimal("0")
+
         client = self._build_clob_client()
         from py_clob_client_v2.clob_types import AssetType, BalanceAllowanceParams
 
-        data = client.get_balance_allowance(
-            BalanceAllowanceParams(asset_type=AssetType.COLLATERAL, signature_type=int(settings.polymarket_signature_type or "3"))
-        )
+        try:
+            data = client.get_balance_allowance(
+                BalanceAllowanceParams(
+                    asset_type=AssetType.COLLATERAL,
+                    signature_type=int(settings.polymarket_signature_type or "3"),
+                )
+            )
+        except Exception:
+            if require_configured:
+                raise
+            return Decimal("0")
         balance = clob_collateral_amount(data.get("balance") if isinstance(data, dict) else None)
         return Decimal(str(balance or 0))
 

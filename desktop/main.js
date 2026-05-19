@@ -18,7 +18,15 @@ function projectRoot() {
   return path.resolve(__dirname, "..");
 }
 
-function pythonExecutable() {
+function pythonExecutable(root = projectRoot()) {
+  const localPython = process.platform === "win32"
+    ? path.join(root, ".venv", "Scripts", "python.exe")
+    : path.join(root, ".venv", "bin", "python");
+
+  if (fs.existsSync(localPython)) {
+    return localPython;
+  }
+
   return process.platform === "win32" ? "python" : "python3";
 }
 
@@ -58,7 +66,7 @@ async function ensureFlaskServer() {
   const out = fs.openSync(logPath, "a");
   const err = fs.openSync(errorPath, "a");
 
-  flaskProcess = spawn(pythonExecutable(), ["-m", "src.web_app"], {
+  flaskProcess = spawn(pythonExecutable(root), ["-m", "src.web_app"], {
     cwd: root,
     env: { ...process.env },
     stdio: ["ignore", out, err],
