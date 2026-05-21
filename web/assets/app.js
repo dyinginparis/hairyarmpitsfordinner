@@ -142,6 +142,8 @@ let liveCopytradeSettings = {};
 let activeTabName = "scanner";
 let liveRefreshInFlight = false;
 let liveRefreshTimer = null;
+let liveRiskSettingsDirty = false;
+let liveRiskSettingsSaving = false;
 
 function debounce(fn, wait = 450) {
   let timeoutId;
@@ -1859,10 +1861,12 @@ function renderLiveTrading(data, copytraders, positions, closedPositions, linked
 
 async function loadLiveRiskSettings() {
   if (!liveCapitalModeInput) return;
+  if (liveRiskSettingsDirty || liveRiskSettingsSaving) return;
   const response = await fetch("/api/live/settings");
   if (!response.ok) return;
   const data = await response.json();
   const settings = data.settings || {};
+  if (liveRiskSettingsDirty || liveRiskSettingsSaving) return;
   liveCapitalModeInput.value = settings.copytradeCapitalMode || "CONSERVATIVE";
   liveMinCashReserveInput.value = Number(settings.minCashReserveUsdc || 0).toFixed(0);
   liveMinTradeInput.value = Number(settings.minTradeUsdc || 1).toFixed(0);
@@ -1872,6 +1876,7 @@ async function loadLiveRiskSettings() {
 async function saveLiveRiskSettings() {
   if (!liveSaveRiskButton) return;
   liveSaveRiskButton.disabled = true;
+  liveRiskSettingsSaving = true;
   liveTradingStatus.textContent = "Saving live risk settings...";
   try {
     const currentResponse = await fetch("/api/live/settings");
@@ -1889,12 +1894,19 @@ async function saveLiveRiskSettings() {
         minTradeUsdc: liveMinTradeInput.value || "1",
       }),
     });
-    await parseApiJson(response, "Save live risk");
+    const saved = await parseApiJson(response, "Save live risk");
+    const savedSettings = saved.settings || {};
+    liveCapitalModeInput.value = savedSettings.copytradeCapitalMode || liveCapitalModeInput.value || "CONSERVATIVE";
+    liveMinCashReserveInput.value = Number(savedSettings.minCashReserveUsdc ?? liveMinCashReserveInput.value ?? 0).toFixed(0);
+    liveMinTradeInput.value = Number(savedSettings.minTradeUsdc ?? liveMinTradeInput.value ?? 1).toFixed(0);
+    liveMaxChaseInput.value = Number(savedSettings.maxChaseBps ?? liveMaxChaseInput.value ?? 0).toFixed(0);
+    liveRiskSettingsDirty = false;
     await loadLiveTrading();
     liveTradingStatus.textContent = "Live risk settings saved.";
   } catch (error) {
     liveTradingStatus.textContent = error.message || "Live risk settings failed.";
   } finally {
+    liveRiskSettingsSaving = false;
     liveSaveRiskButton.disabled = false;
   }
 }
@@ -2332,6 +2344,15 @@ if (liveSaveRiskButton) {
     saveLiveRiskSettings();
   });
 }
+[liveCapitalModeInput, liveMinCashReserveInput, liveMinTradeInput, liveMaxChaseInput].forEach((input) => {
+  if (!input) return;
+  input.addEventListener("input", () => {
+    liveRiskSettingsDirty = true;
+  });
+  input.addEventListener("change", () => {
+    liveRiskSettingsDirty = true;
+  });
+});
 liveRefreshTimer = window.setInterval(() => {
   loadLiveTrading().catch(() => {});
 }, 5000);
