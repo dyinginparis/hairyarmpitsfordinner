@@ -144,6 +144,7 @@ let liveRefreshInFlight = false;
 let liveRefreshTimer = null;
 let liveRiskSettingsDirty = false;
 let liveRiskSettingsSaving = false;
+let liveCopytradeSettingsSaving = false;
 
 function debounce(fn, wait = 450) {
   let timeoutId;
@@ -1197,23 +1198,28 @@ async function saveCopytradeSettings(wallet, enabled) {
 }
 
 async function saveLiveCopytradeSettings(wallet, enabled) {
+  liveCopytradeSettingsSaving = true;
   const mode = getCopySettingValue(wallet, ".live-copy-sizing-mode", "PERCENT");
   const sizeValue = getCopySettingValue(wallet, ".live-copy-size-value", "10");
   const maxUsdc = getCopySettingValue(wallet, ".live-copy-max-usdc", "100");
-  const response = await fetch(`/api/live/copytrade/${encodeURIComponent(wallet)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      enabled,
-      sizingMode: mode,
-      sizeValue,
-      maxUsdc,
-    }),
-  });
-  if (!response.ok) {
-    throw new Error(`Live copytrade settings returned HTTP ${response.status}`);
+  try {
+    const response = await fetch(`/api/live/copytrade/${encodeURIComponent(wallet)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        enabled,
+        sizingMode: mode,
+        sizeValue,
+        maxUsdc,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`Live copytrade settings returned HTTP ${response.status}`);
+    }
+    await loadLiveTrading();
+  } finally {
+    liveCopytradeSettingsSaving = false;
   }
-  await loadLiveTrading();
 }
 
 function getCopySettingValue(wallet, selector, fallback) {
@@ -1913,6 +1919,7 @@ async function saveLiveRiskSettings() {
 
 function renderLiveCopytraders(copytraders) {
   if (!liveCopytraderList) return;
+  if (isLiveCopytradeControlActive() || liveCopytradeSettingsSaving) return;
   liveCopytradeSettings = {};
   if (!copytraders.length) {
     liveCopytraderList.innerHTML = `<div class="empty-state">No saved traders yet. Add traders to the Watchlist first.</div>`;
@@ -1940,12 +1947,20 @@ function renderLiveCopytraders(copytraders) {
           <option value="PERCENT" ${setting.sizing_mode !== "FIXED" ? "selected" : ""}>Percent</option>
           <option value="FIXED" ${setting.sizing_mode === "FIXED" ? "selected" : ""}>Fixed USDC</option>
         </select>
-        <input class="live-copy-size-value" data-wallet="${escapeHtml(wallet)}" type="number" min="0" step="1" value="${Number(setting.size_value ?? 10)}">
-        <input class="live-copy-max-usdc" data-wallet="${escapeHtml(wallet)}" type="number" min="0" step="1" value="${Number(setting.max_usdc ?? 100)}">
+        <input class="live-copy-size-value" data-wallet="${escapeHtml(wallet)}" type="number" min="0" step="0.01" value="${Number(setting.size_value ?? 10)}">
+        <input class="live-copy-max-usdc" data-wallet="${escapeHtml(wallet)}" type="number" min="0" step="0.01" value="${Number(setting.max_usdc ?? 100)}">
         <div class="${enabled ? "profit" : "loss"}">${enabled ? "Eligible for live copy" : "Not copied"}</div>
       </div>
     `;
   }).join("");
+}
+
+function isLiveCopytradeControlActive() {
+  return Boolean(
+    document.activeElement?.closest?.(
+      ".live-copy-sizing-mode, .live-copy-size-value, .live-copy-max-usdc"
+    )
+  );
 }
 
 async function setLiveTradingEnabled(enabled) {
