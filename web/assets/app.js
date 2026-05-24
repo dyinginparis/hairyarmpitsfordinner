@@ -137,6 +137,7 @@ let traderMonitorId = null;
 let traderMonitorRefreshInFlight = false;
 let lastSeenPaperEventId = 0;
 const monitorIntervalMs = 30000;
+let liveRefreshIntervalMs = 30000;
 let copytradeSettings = {};
 let liveCopytradeSettings = {};
 let activeTabName = "scanner";
@@ -464,6 +465,21 @@ async function loadConfig() {
   limitInput.value = config.scanLimit ?? 50;
   maxMarketsInput.value = Math.min(config.scanLimit ?? 50, 25);
   profitInput.value = config.minProfitBps ?? 10;
+  const refreshSeconds = Number(config.liveRefreshIntervalSeconds || 30);
+  if (Number.isFinite(refreshSeconds) && refreshSeconds > 0) {
+    liveRefreshIntervalMs = refreshSeconds * 1000;
+    scheduleLiveRefresh();
+  }
+}
+
+function scheduleLiveRefresh() {
+  if (liveRefreshTimer) {
+    window.clearInterval(liveRefreshTimer);
+  }
+  liveRefreshTimer = window.setInterval(() => {
+    if (activeTabName !== "execution") return;
+    loadLiveTrading().catch(() => {});
+  }, liveRefreshIntervalMs);
 }
 
 function switchTab(tabName) {
@@ -1010,6 +1026,19 @@ async function startTraderMonitor(requestNotifications = false) {
     return;
   }
 
+  const backendStatus = await loadWatchlistMonitorStatus();
+  if (backendStatus?.running) {
+    if (requestNotifications) {
+      await ensureNotificationPermission();
+    }
+    traderMonitorButton.textContent = "Trade Alerts On";
+    if (!backendStatus.lastRunAt && !backendStatus.lastError) {
+      watchlistAlertStatus.textContent = "Backend trade monitor running";
+    }
+    await loadWatchlistAlerts();
+    return;
+  }
+
   if (requestNotifications) {
     await ensureNotificationPermission();
   }
@@ -1025,12 +1054,11 @@ async function startTraderMonitor(requestNotifications = false) {
 
 async function handleTraderMonitorButton() {
   await startTraderMonitor(true);
-  await refreshWatchlistTrades();
 }
 
 async function loadWatchlistMonitorStatus() {
   const response = await fetch("/api/watchlist/monitor");
-  if (!response.ok) return;
+  if (!response.ok) return null;
   const data = await response.json();
   traderMonitorButton.textContent = data.running ? "Trade Alerts On" : "Start Trade Alerts";
   if (data.lastError) {
@@ -1038,7 +1066,10 @@ async function loadWatchlistMonitorStatus() {
   } else if (data.lastRunAt) {
     const result = data.lastResult || {};
     watchlistAlertStatus.textContent = `${Number(result.newAlerts || 0)} new alerts from ${Number(result.walletsChecked || 0)} wallets`;
+  } else if (data.running) {
+    watchlistAlertStatus.textContent = "Backend trade monitor running";
   }
+  return data;
 }
 
 async function loadWatchlistAlerts() {
@@ -2368,11 +2399,8 @@ if (liveSaveRiskButton) {
     liveRiskSettingsDirty = true;
   });
 });
-liveRefreshTimer = window.setInterval(() => {
-  loadLiveTrading().catch(() => {});
-}, 5000);
+scheduleLiveRefresh();
 loadConfig().catch(() => {});
 loadCopytradeSettings().catch(() => {});
 loadPaperExecutionSettings().catch(() => {});
 loadWatchlistMonitorStatus().catch(() => {});
-startTraderMonitor(false).catch(() => {});

@@ -5,7 +5,7 @@ const http = require("node:http");
 const path = require("node:path");
 
 const APP_URL = "http://127.0.0.1:5050";
-const HEALTH_URL = `${APP_URL}/api/config`;
+const HEALTH_URL = `${APP_URL}/api/health`;
 const SERVER_TIMEOUT_MS = 30000;
 
 let mainWindow = null;

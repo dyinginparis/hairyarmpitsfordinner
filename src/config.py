@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 
 @dataclass(frozen=True)
 class Settings:
+    app_host: str = "127.0.0.1"
+    app_port: int = 5050
     gamma_base_url: str = "https://gamma-api.polymarket.com"
     clob_base_url: str = "https://clob.polymarket.com"
     data_base_url: str = "https://data-api.polymarket.com"
@@ -17,6 +19,9 @@ class Settings:
     min_profit_bps: float = 10.0
     request_timeout_seconds: float = 10.0
     database_path: str = "data/smart_wallets.sqlite3"
+    watchlist_monitor_interval_seconds: int = 30
+    live_refresh_interval_seconds: int = 30
+    enable_background_monitor: bool = True
     polymarket_account_address: str = ""
     polymarket_funder_address: str = ""
     polymarket_signature_type: str = ""
@@ -43,15 +48,27 @@ def load_settings() -> Settings:
     load_dotenv(override=True)
 
     return Settings(
+        app_host=os.getenv("APP_HOST", Settings.app_host).strip() or Settings.app_host,
+        app_port=_env_int("APP_PORT", Settings.app_port),
         gamma_base_url=os.getenv("POLYMARKET_GAMMA_BASE_URL", Settings.gamma_base_url).rstrip("/"),
         clob_base_url=os.getenv("POLYMARKET_CLOB_BASE_URL", Settings.clob_base_url).rstrip("/"),
         data_base_url=os.getenv("POLYMARKET_DATA_BASE_URL", Settings.data_base_url).rstrip("/"),
-        scan_limit=int(os.getenv("SCAN_LIMIT", Settings.scan_limit)),
-        min_profit_bps=float(os.getenv("MIN_PROFIT_BPS", Settings.min_profit_bps)),
-        request_timeout_seconds=float(
-            os.getenv("REQUEST_TIMEOUT_SECONDS", Settings.request_timeout_seconds)
-        ),
+        scan_limit=_env_int("SCAN_LIMIT", Settings.scan_limit),
+        min_profit_bps=_env_float("MIN_PROFIT_BPS", Settings.min_profit_bps),
+        request_timeout_seconds=_env_float("REQUEST_TIMEOUT_SECONDS", Settings.request_timeout_seconds),
         database_path=os.getenv("DATABASE_PATH", Settings.database_path),
+        watchlist_monitor_interval_seconds=_env_int(
+            "WATCHLIST_MONITOR_INTERVAL_SECONDS",
+            Settings.watchlist_monitor_interval_seconds,
+        ),
+        live_refresh_interval_seconds=_env_int(
+            "LIVE_REFRESH_INTERVAL_SECONDS",
+            Settings.live_refresh_interval_seconds,
+        ),
+        enable_background_monitor=_env_bool(
+            "ENABLE_BACKGROUND_MONITOR",
+            Settings.enable_background_monitor,
+        ),
         polymarket_account_address=os.getenv("POLYMARKET_ACCOUNT_ADDRESS", "").strip(),
         polymarket_funder_address=os.getenv("POLYMARKET_FUNDER_ADDRESS", "").strip(),
         polymarket_signature_type=os.getenv("POLYMARKET_SIGNATURE_TYPE", "").strip(),
@@ -60,6 +77,32 @@ def load_settings() -> Settings:
         polymarket_api_passphrase=os.getenv("POLYMARKET_API_PASSPHRASE", "").strip(),
         polymarket_private_key=os.getenv("POLYMARKET_PRIVATE_KEY", "").strip(),
     )
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+    value = raw_value.strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    return default
 
 
 def account_connection_payload(settings: Settings | None = None) -> dict[str, str | bool]:

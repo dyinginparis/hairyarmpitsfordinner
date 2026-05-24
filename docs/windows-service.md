@@ -90,7 +90,7 @@ Der Installer erledigt dann:
 5. Healthcheck pruefen:
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:5050/api/config
+Invoke-RestMethod http://127.0.0.1:5050/api/health
 ```
 
 6. Browser oeffnen:
@@ -128,7 +128,7 @@ Die Install-, Start-, Stop-, Restart- und Uninstall-Dateien muessen als Administ
 
 - Windows-Service-Status
 - ob Port `5050` belegt ist
-- Healthcheck-Antwort von `/api/config`
+- Healthcheck-Antwort von `/api/health`
 
 Die Batch-Dateien loeschen keine Daten. `.env`, `data`, `logs` und die SQLite-Datenbank bleiben auch beim Uninstall erhalten.
 
@@ -162,7 +162,7 @@ cd C:\Projects\Jayanam\hairyarmpitsfordinner
 In einem zweiten PowerShell-Fenster pruefen:
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:5050/api/config
+Invoke-RestMethod http://127.0.0.1:5050/api/health
 ```
 
 Wenn JSON zurueckkommt, laeuft der Server.
@@ -252,7 +252,7 @@ Status pruefen:
 Healthcheck:
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:5050/api/config
+Invoke-RestMethod http://127.0.0.1:5050/api/health
 ```
 
 ## Dienst Verwalten
@@ -306,7 +306,7 @@ Desktop-App:
 .\Start Desktop App.bat
 ```
 
-Die Desktop-App prueft beim Start `http://127.0.0.1:5050/api/config`. Wenn der Dienst bereits antwortet, nutzt sie diesen Server. Wird das Desktop-Fenster geschlossen, bleibt der Dienst aktiv.
+Die Desktop-App prueft beim Start `http://127.0.0.1:5050/api/health`. Wenn der Dienst bereits antwortet, nutzt sie diesen Server. Wird das Desktop-Fenster geschlossen, bleibt der Dienst aktiv.
 
 Wenn der Dienst nicht laeuft, startet die Desktop-App weiterhin ihren eigenen lokalen Server. Dieser wird beim Schliessen der Desktop-App beendet. Fuer echten 24/7-Betrieb also immer zuerst den Dienst starten oder den Dienst auf automatischen Start setzen.
 
@@ -335,7 +335,7 @@ Stop-Service PredictionMarketBot
 git pull
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt waitress
 Start-Service PredictionMarketBot
-Invoke-RestMethod http://127.0.0.1:5050/api/config
+Invoke-RestMethod http://127.0.0.1:5050/api/health
 ```
 
 Wenn `.env` geaendert wurde, muss der Dienst neu gestartet werden:
@@ -517,19 +517,22 @@ Die bestehende WAL-Konfiguration ist fuer parallele Lesezugriffe hilfreich.
 
 ### Logging Und Healthcheck
 
-Fuer den Dienstbetrieb sollte ein dedizierter Healthcheck existieren:
+Fuer den Dienstbetrieb gibt es einen dedizierten Healthcheck:
 
 ```text
 GET /api/health
 ```
 
-Der Healthcheck sollte schnell und ohne externe API-Calls antworten, zum Beispiel:
+Der Healthcheck antwortet schnell und ohne externe API-Calls, zum Beispiel:
 
 ```json
 {
   "ok": true,
   "database": "ok",
-  "backgroundMonitor": "running"
+  "backgroundMonitor": {
+    "running": true,
+    "intervalSeconds": 30
+  }
 }
 ```
 
@@ -551,7 +554,7 @@ Pragmatische Reihenfolge:
 3. Background-Monitor aus `web_app.py` in eine eigene Komponente verschieben.
 4. UI-Polling reduzieren und nur fuer aktive Tabs ausfuehren.
 5. Live-/Account-Endpunkte so umbauen, dass sie gespeicherten Zustand lesen und keine teuren Reconciliations pro Request starten.
-6. `/api/health` und bessere Logs ergaenzen.
+6. bessere Logs ergaenzen.
 7. Backup- und Update-Prozess standardisieren.
 
 ## Sicherheit
